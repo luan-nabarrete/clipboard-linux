@@ -6,8 +6,8 @@ contextBridge.exposeInMainWorld('clipstack', {
   ready() {
     ipcRenderer.send('panel:ready');
   },
-  restore(text) {
-    ipcRenderer.send('panel:restore', text);
+  restore(entryId) {
+    ipcRenderer.send('panel:restore', entryId);
   },
   deleteEntry(id) {
     ipcRenderer.send('panel:delete-entry', id);
