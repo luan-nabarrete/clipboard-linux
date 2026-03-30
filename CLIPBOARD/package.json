@@ -1,0 +1,52 @@
+{
+  "name": "clipstack",
+  "version": "0.2.0",
+  "description": "Clipboard manager para Linux com Electron, tray e atalho global",
+  "main": "src/main/index.js",
+  "author": "Codex",
+  "homepage": "https://clipstack.invalid",
+  "license": "MIT",
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE electron .",
+    "dev": "env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE electron .",
+    "test": "node --test test/*.test.js",
+    "dist": "electron-builder --linux AppImage deb",
+    "dist:appimage": "electron-builder --linux AppImage",
+    "dist:deb": "electron-builder --linux deb",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.clipstack.app",
+    "productName": "ClipStack",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "icon": "assets/icon.svg",
+    "afterPack": "./scripts/after-pack.js",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "icon": "assets/icon.svg",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "Codex",
+      "desktop": {
+        "Name": "ClipStack",
+        "Comment": "Clipboard manager para Linux com historico, tray e atalho global",
+        "StartupWMClass": "ClipStack"
+      }
+    },
+    "deb": {
+      "packageCategory": "utils",
+      "priority": "optional"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  }
+}
