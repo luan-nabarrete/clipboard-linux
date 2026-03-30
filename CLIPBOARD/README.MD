@@ -1,70 +1,83 @@
 # ClipStack
 
-Aplicacao desktop Linux com interface grafica para historico de area de transferencia no estilo do `Windows + V`, agora em `Electron` para funcionar com fluxo simples de `npm install`.
-
-## Stack escolhida
-
-- `Electron`
-- `Node.js 16+`
-- `globalShortcut`, `Tray`, `BrowserWindow` e `clipboard` nativos do Electron
+Clipboard manager para Linux com interface grafica, historico de copias, atalho global, tray e painel flutuante para restaurar textos rapidamente.
 
 ## O que o app faz
 
-- Monitora continuamente o clipboard do sistema, sem tentar interceptar `Ctrl+C` diretamente
+- Monitora continuamente o clipboard do sistema
 - Mantem um historico em pilha com item mais recente no topo
 - Evita duplicacoes consecutivas identicas
 - Abre um painel flutuante com `Super+C` ou pelo icone da tray
 - Restaura o item clicado de volta para o clipboard atual
 - Exibe lista numerada com preview abreviado e scroll
 - Inicia oculto em segundo plano
+- Permite personalizar as cores do painel por um seletor RGB
 
-## Estrutura principal
+## Estrutura do repositorio
+
+Este repositorio usa a pasta `CLIPBOARD/` como projeto principal:
 
 ```text
-CLIPBOARD/
-├── assets/
-│   └── icon.svg
-├── src/
-│   ├── main/
-│   │   ├── clipboard-service.js
-│   │   ├── history-store.js
-│   │   ├── hotkey-service.js
-│   │   ├── icon.js
-│   │   ├── index.js
-│   │   ├── tray-service.js
-│   │   └── window-manager.js
-│   ├── renderer/
-│   │   ├── panel.css
-│   │   ├── panel.html
-│   │   └── panel.js
-│   ├── shared/
-│   │   └── formatting.js
-│   └── preload.js
-├── test/
-│   └── history-store.test.js
-├── package.json
-└── README.MD
+clipboard-linux/
+└── CLIPBOARD/
+    ├── assets/
+    ├── scripts/
+    ├── src/
+    ├── test/
+    ├── package.json
+    └── README.MD
 ```
 
-## Instalacao
+## Como usar sem baixar o codigo
+
+Se a pessoa so quiser instalar e testar o app no Ubuntu ou outra distro baseada em Debian, o melhor caminho e baixar o arquivo `.deb` na pagina de release do projeto.
+
+Passos:
+
+1. Baixe o arquivo `ClipStack-<versao>-amd64.deb`
+2. No terminal, entre na pasta onde o arquivo foi baixado
+3. Instale com:
+
+```bash
+sudo apt install ./ClipStack-<versao>-amd64.deb
+```
+
+4. Depois abra pelo menu de aplicativos procurando por `ClipStack`
+
+Esse fluxo e o mais simples para quem quer instalar e abrir pelo icone do sistema.
+
+## Como usar baixando o projeto completo
+
+Se a pessoa quiser baixar todo o codigo para rodar localmente:
+
+1. Clone o repositorio ou baixe o ZIP pelo GitHub
+2. Entre na pasta do projeto:
+
+```bash
+cd clipboard-linux/CLIPBOARD
+```
+
+3. Instale as dependencias:
 
 ```bash
 npm install
 ```
 
-## Execucao
+4. Rode o app:
 
 ```bash
 npm start
 ```
 
-## Gerar instaladores Linux
+## Como gerar os instaladores
+
+Dentro da pasta `CLIPBOARD/`:
 
 ```bash
 npm run dist
 ```
 
-O build gera os arquivos dentro da pasta `dist/`:
+Isso gera os arquivos dentro de `dist/`:
 
 - `AppImage`: versao portatil, sem instalacao
 - `.deb`: instalador para Debian, Ubuntu e derivados
@@ -76,42 +89,16 @@ npm run dist:appimage
 npm run dist:deb
 ```
 
-## Distribuir para outras pessoas
+## Stack
 
-Para deixar o app mais amigavel para usuarios finais no Linux, o melhor caminho e distribuir o arquivo `.deb`.
-
-Observacao:
-
-- O `package.json` usa hoje um `homepage` placeholder (`https://clipstack.invalid`) apenas para permitir o empacotamento `.deb`.
-- Antes de uma publicacao oficial, vale trocar isso pelo link real do seu repositorio, site ou pagina do projeto.
-
-Fluxo recomendado para quem vai usar:
-
-1. Baixar o arquivo `.deb`
-2. Instalar com:
-
-```bash
-sudo apt install ./dist/ClipStack-0.2.0-amd64.deb
-```
-
-3. Abrir pelo menu de aplicativos procurando por `ClipStack`
-4. Fixar no dock, barra de tarefas ou favoritos do sistema, se quiser
-
-Depois de instalado, o sistema cria a entrada do aplicativo no menu com icone, entao a pessoa nao precisa abrir pelo terminal.
-
-Para distribuições que nao usam `.deb`, voce pode enviar o `AppImage`. Nesse caso, a pessoa roda assim:
-
-```bash
-chmod +x ClipStack-0.2.0-amd64.AppImage
-./ClipStack-0.2.0-amd64.AppImage
-```
-
-O `AppImage` funciona bem como versao portatil, mas o `.deb` e a opcao mais proxima de "instalar e abrir pelo icone".
+- `Electron`
+- `Node.js 16+`
+- `globalShortcut`, `Tray`, `BrowserWindow` e `clipboard` nativos do Electron
 
 ## Arquitetura rapida
 
-- `src/main/clipboard-service.js`: monitora o clipboard do sistema por polling confiavel
-- `src/main/history-store.js`: gerencia o historico em memoria e a promocao de itens
+- `src/main/clipboard-service.js`: monitora o clipboard do sistema por polling
+- `src/main/history-store.js`: gerencia o historico em memoria
 - `src/main/hotkey-service.js`: registra o atalho global `Super+C`
 - `src/main/tray-service.js`: controla o icone da tray e o menu
 - `src/main/window-manager.js`: cria e posiciona a janela flutuante
@@ -130,10 +117,10 @@ npm test
 2. O `Super+C` funciona melhor em `X11`. Em `Wayland`, o suporte depende do ambiente grafico e do portal de atalhos globais.
 3. Alguns ambientes Linux nao expoem tray de forma completa. Quando isso acontecer, o app tenta manter o painel acessivel em primeiro plano.
 4. O historico fica em memoria enquanto o app estiver rodando. Ao fechar o app, o historico e descartado.
-5. O pacote `.deb` cobre melhor Debian, Ubuntu, Mint, Pop!_OS e derivados. Em outras distribuições, prefira o `AppImage`.
+5. O pacote `.deb` cobre melhor Debian, Ubuntu, Mint, Pop!_OS e derivados. Em outras distribuicoes, prefira o `AppImage`.
 
-## Observacoes de uso
+## Observacoes
 
-- Clique em um item para restaurar e subir esse texto para o topo do historico.
-- O painel fecha com `ESC` ou ao perder foco.
-- Textos longos sao armazenados por inteiro; apenas a visualizacao da lista e abreviada.
+- O `package.json` usa um `homepage` placeholder (`https://clipstack.invalid`) apenas para permitir o empacotamento `.deb`
+- Antes de uma publicacao oficial, vale trocar esse link pelo repositorio ou site real do projeto
+- Textos longos sao armazenados por inteiro; apenas a visualizacao da lista e abreviada
