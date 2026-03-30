@@ -33,6 +33,7 @@ const DEFAULT_THEME = Object.freeze({
 let resizeState = null;
 let dragPointerId = null;
 let currentTheme = { ...DEFAULT_THEME };
+const copiedFeedbackTimers = new WeakMap();
 
 function normalizeHexColor(value) {
   if (typeof value !== 'string' || !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) {
@@ -189,13 +190,35 @@ function setThemePopoverOpen(isOpen) {
   themeButton.setAttribute('aria-expanded', String(isOpen));
 }
 
+function showCopiedFeedback(button) {
+  const existingTimer = copiedFeedbackTimers.get(button);
+  if (existingTimer) {
+    window.clearTimeout(existingTimer);
+  }
+
+  button.classList.remove('is-copied');
+  button.dataset.feedback = 'Copiado';
+
+  // Reinicia a animacao mesmo em cliques repetidos no mesmo item.
+  void button.offsetWidth;
+  button.classList.add('is-copied');
+
+  const timer = window.setTimeout(() => {
+    button.classList.remove('is-copied');
+    delete button.dataset.feedback;
+    copiedFeedbackTimers.delete(button);
+  }, 1150);
+
+  copiedFeedbackTimers.set(button, timer);
+}
+
 function renderState(state) {
   const entries = Array.isArray(state.entries) ? state.entries : [];
 
   statusText.textContent = entries.length
     ? `${entries.length} item(ns) capturado(s)`
     : 'Aguardando copias...';
-  helperText.textContent = state.helperText || 'Super+C abre o painel. Clique em um item para restaurar.';
+  helperText.textContent = state.helperText || 'Super+C abre o painel. Clique em um item para restaurar texto ou imagem.';
 
   historyList.innerHTML = '';
 
@@ -215,20 +238,45 @@ function renderState(state) {
     const button = document.createElement('button');
     button.className = 'history-button';
     button.type = 'button';
-    button.title = entry.tooltip || entry.text;
-    button.dataset.text = entry.text;
+    button.title = entry.tooltip || '';
 
     const index = document.createElement('span');
     index.className = 'item-index';
     index.textContent = String(entry.index);
 
-    const preview = document.createElement('span');
-    preview.className = 'item-preview';
-    preview.textContent = entry.preview || entry.text;
+    const content = document.createElement('span');
+    content.className = 'item-content';
 
-    button.append(index, preview);
+    if (entry.type === 'image') {
+      const thumbnail = document.createElement('img');
+      thumbnail.className = 'item-thumbnail';
+      thumbnail.alt = 'Preview da imagem copiada';
+      thumbnail.src = entry.thumbnailDataUrl;
+
+      const meta = document.createElement('span');
+      meta.className = 'item-meta';
+
+      const title = document.createElement('strong');
+      title.className = 'item-title';
+      title.textContent = 'Imagem copiada';
+
+      const preview = document.createElement('span');
+      preview.className = 'item-preview item-preview-image';
+      preview.textContent = entry.preview || 'Imagem copiada';
+
+      meta.append(title, preview);
+      content.append(thumbnail, meta);
+    } else {
+      const preview = document.createElement('span');
+      preview.className = 'item-preview';
+      preview.textContent = entry.preview || entry.text;
+      content.append(preview);
+    }
+
+    button.append(index, content);
     button.addEventListener('click', () => {
-      window.clipstack.restore(entry.text);
+      window.clipstack.restore(entry.id);
+      showCopiedFeedback(button);
     });
 
     const deleteButton = document.createElement('button');

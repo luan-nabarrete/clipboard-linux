@@ -58,6 +58,45 @@ test('remove item especifico pelo id', () => {
   );
 });
 
+test('armazena imagem como item do historico', () => {
+  const store = new ClipboardHistoryStore();
+
+  store.add({
+    type: 'image',
+    imageDataUrl: 'data:image/png;base64,abc123',
+    thumbnailDataUrl: 'data:image/png;base64,thumb123',
+    width: 640,
+    height: 360,
+    byteLength: 2048,
+    signature: 'image:abc123'
+  });
+
+  const [entry] = store.snapshot();
+  assert.equal(entry.type, 'image');
+  assert.equal(entry.width, 640);
+  assert.equal(entry.height, 360);
+  assert.equal(entry.imageDataUrl, 'data:image/png;base64,abc123');
+});
+
+test('ignora duplicacao consecutiva identica de imagem', () => {
+  const store = new ClipboardHistoryStore();
+
+  store.add({
+    type: 'image',
+    imageDataUrl: 'data:image/png;base64,abc123',
+    signature: 'image:abc123'
+  });
+
+  const added = store.add({
+    type: 'image',
+    imageDataUrl: 'data:image/png;base64,abc123',
+    signature: 'image:abc123'
+  });
+
+  assert.equal(added, false);
+  assert.equal(store.count(), 1);
+});
+
 test('abrevia previews longos com reticencias', () => {
   assert.equal(buildPreview('a'.repeat(50), 12), 'aaaaaaaaa...');
 });

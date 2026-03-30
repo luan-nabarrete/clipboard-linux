@@ -8,11 +8,16 @@ const { GlobalHotkeyService } = require('./hotkey-service');
 const { createAppIcon } = require('./icon');
 const { TrayService } = require('./tray-service');
 const { PanelWindow } = require('./window-manager');
-const { buildPreview, buildTooltip } = require('../shared/formatting');
+const {
+  buildPreview,
+  buildTooltip,
+  buildImagePreview,
+  buildImageTooltip
+} = require('../shared/formatting');
 
 const APP_NAME = 'ClipStack';
 const HOTKEY_LABEL = 'Super+C';
-const DEFAULT_HELPER_TEXT = `${HOTKEY_LABEL} abre o painel. Clique em um item para restaurar.`;
+const DEFAULT_HELPER_TEXT = `${HOTKEY_LABEL} abre o painel. Clique em um item para restaurar texto ou imagem.`;
 let panelWindowRef = null;
 
 // Evita falhas de GPU em alguns ambientes Linux empacotados.
@@ -57,12 +62,30 @@ function bootstrap() {
 
   function buildState() {
     // A renderer recebe o historico ja pronto para exibir, sem conhecer a regra de negocio.
-    const entries = historyStore.snapshot().map((entry, index) => ({
-      ...entry,
-      index: index + 1,
-      preview: buildPreview(entry.text),
-      tooltip: buildTooltip(entry.text)
-    }));
+    const entries = historyStore.snapshot().map((entry, index) => {
+      if (entry.type === 'image') {
+        return {
+          id: entry.id,
+          type: entry.type,
+          index: index + 1,
+          thumbnailDataUrl: entry.thumbnailDataUrl,
+          width: entry.width,
+          height: entry.height,
+          byteLength: entry.byteLength,
+          preview: buildImagePreview(entry),
+          tooltip: buildImageTooltip(entry)
+        };
+      }
+
+      return {
+        id: entry.id,
+        type: 'text',
+        text: entry.text,
+        index: index + 1,
+        preview: buildPreview(entry.text),
+        tooltip: buildTooltip(entry.text)
+      };
+    });
 
     return {
       helperText,
@@ -92,10 +115,14 @@ function bootstrap() {
     notifier.warn(`Falha ao acessar o clipboard: ${error instanceof Error ? error.message : error}`);
   });
 
-  panelWindow.on('restore', (text) => {
-    clipboardService.writeText(text);
-    historyStore.promote(text);
-    refreshUi();
+  panelWindow.on('restore', (entryId) => {
+    const entry = historyStore.getById(entryId);
+    if (!entry) {
+      return;
+    }
+
+    // Restaurar um item nao deve reordenar o historico; apenas devolve o conteudo ao clipboard.
+    clipboardService.writeEntry(entry);
   });
 
   panelWindow.on('delete-entry', (id) => {
@@ -136,6 +163,7 @@ function bootstrap() {
   hotkeyService.start();
   clipboardService.start();
   refreshUi();
+  panelWindow.show();
 }
 
 app.whenReady().then(() => {
