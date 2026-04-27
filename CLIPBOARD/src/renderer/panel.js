@@ -11,9 +11,8 @@ const themeButton = document.getElementById('themeButton');
 const themePopover = document.getElementById('themePopover');
 const themeResetButton = document.getElementById('themeResetButton');
 const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
-const hotkeyForm = document.getElementById('hotkeyForm');
 const hotkeyInput = document.getElementById('hotkeyInput');
-const hotkeySaveButton = document.getElementById('hotkeySaveButton');
+const hotkeyResetButton = document.getElementById('hotkeyResetButton');
 const hotkeyHint = document.getElementById('hotkeyHint');
 const pasteCapability = document.getElementById('pasteCapability');
 
@@ -35,13 +34,14 @@ const DEFAULT_THEME = Object.freeze({
   accent: '#5754d2',
   danger: '#ef2929'
 });
+const DEFAULT_HOTKEY = 'Super+C';
+const DEFAULT_HOTKEY_HELP = 'Clique no campo e pressione a combinacao desejada.';
+const HOTKEY_MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'Super', 'OS', 'AltGraph']);
 
 let resizeState = null;
 let dragPointerId = null;
 let currentTheme = { ...DEFAULT_THEME };
 let currentState = null;
-let hotkeyDirty = false;
-let isSavingHotkey = false;
 const actionFeedbackTimers = new WeakMap();
 
 function normalizeHexColor(value) {
@@ -199,9 +199,12 @@ function setThemePopoverOpen(isOpen) {
   themeButton.setAttribute('aria-expanded', String(isOpen));
 }
 
+function getSavedHotkey() {
+  return currentState?.preferences?.hotkey || DEFAULT_HOTKEY;
+}
+
 function buildFallbackHelperText() {
-  const hotkeyLabel = currentState?.preferences?.hotkey || 'Super+C';
-  return `${hotkeyLabel} abre o painel perto do cursor. Clique em um item para colar imediatamente no app ativo.`;
+  return `${getSavedHotkey()} abre o painel perto do cursor. Clique em um item para colar imediatamente no app ativo.`;
 }
 
 function showActionFeedback(button, feedbackLabel) {
@@ -226,27 +229,125 @@ function showActionFeedback(button, feedbackLabel) {
   actionFeedbackTimers.set(button, timer);
 }
 
-function syncHotkeySaveState() {
-  const savedHotkey = currentState?.preferences?.hotkey || 'Super+C';
-  const candidate = hotkeyInput.value.trim();
-  const hasChanged = candidate.length > 0 && candidate !== savedHotkey;
-  hotkeySaveButton.disabled = isSavingHotkey || !hasChanged;
+function setHotkeyFeedback(message, tone = 'muted') {
+  hotkeyHint.textContent = message;
+  hotkeyHint.dataset.tone = tone;
+  hotkeyInput.classList.toggle('is-capturing', tone === 'accent');
+  hotkeyInput.classList.toggle('is-invalid', tone === 'danger');
+  hotkeyInput.classList.toggle('is-success', tone === 'success');
+}
+
+function restoreHotkeyInputState() {
+  hotkeyInput.value = getSavedHotkey();
+  setHotkeyFeedback(DEFAULT_HOTKEY_HELP, 'muted');
+}
+
+function normalizeHotkeyKey(event) {
+  if (!event || HOTKEY_MODIFIER_KEYS.has(event.key)) {
+    return '';
+  }
+
+  if (/^Key[A-Z]$/.test(event.code)) {
+    return event.code.slice(3);
+  }
+
+  if (/^Digit[0-9]$/.test(event.code)) {
+    return event.code.slice(5);
+  }
+
+  const uppercaseKey = typeof event.key === 'string' ? event.key.toUpperCase() : '';
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(uppercaseKey)) {
+    return uppercaseKey;
+  }
+
+  switch (event.key) {
+    case ' ':
+    case 'Spacebar':
+      return 'Space';
+    case 'Enter':
+      return 'Return';
+    case 'Tab':
+      return 'Tab';
+    case 'Escape':
+      return 'Escape';
+    case 'Backspace':
+      return 'Backspace';
+    case 'Delete':
+      return 'Delete';
+    case 'Insert':
+      return 'Insert';
+    case 'Home':
+      return 'Home';
+    case 'End':
+      return 'End';
+    case 'PageUp':
+      return 'PageUp';
+    case 'PageDown':
+      return 'PageDown';
+    case 'ArrowUp':
+      return 'Up';
+    case 'ArrowDown':
+      return 'Down';
+    case 'ArrowLeft':
+      return 'Left';
+    case 'ArrowRight':
+      return 'Right';
+    default:
+      return /^[a-z0-9]$/i.test(event.key) ? event.key.toUpperCase() : '';
+  }
+}
+
+function buildAcceleratorFromEvent(event) {
+  const modifiers = [];
+
+  if (event.metaKey) {
+    modifiers.push('Super');
+  }
+
+  if (event.ctrlKey) {
+    modifiers.push('Control');
+  }
+
+  if (event.altKey) {
+    modifiers.push('Alt');
+  }
+
+  if (event.shiftKey) {
+    modifiers.push('Shift');
+  }
+
+  const key = normalizeHotkeyKey(event);
+  if (!key) {
+    return {
+      ok: false,
+      message: 'Use ao menos uma tecla final suportada junto de um modificador.'
+    };
+  }
+
+  if (!modifiers.length) {
+    return {
+      ok: false,
+      message: 'Use ao menos um modificador como Super, Ctrl, Alt ou Shift.'
+    };
+  }
+
+  return {
+    ok: true,
+    accelerator: [...modifiers, key].join('+')
+  };
 }
 
 function syncPreferenceControls(state) {
   const preferences = state?.preferences || {};
   alwaysOnTopToggle.checked = Boolean(preferences.alwaysOnTop);
 
-  if (!hotkeyDirty && document.activeElement !== hotkeyInput) {
-    hotkeyInput.value = preferences.hotkey || 'Super+C';
+  if (document.activeElement !== hotkeyInput) {
+    hotkeyInput.value = preferences.hotkey || DEFAULT_HOTKEY;
   }
 
-  hotkeyHint.textContent = `Atalho atual: ${preferences.hotkey || 'Super+C'}. Use o formato do Electron, como Super+C ou Ctrl+Alt+Space.`;
   pasteCapability.textContent = state?.pasteStatus?.displayName
     ? state.pasteStatus.displayName
     : 'Sem backend';
-
-  syncHotkeySaveState();
 }
 
 function renderState(state) {
@@ -416,33 +517,80 @@ alwaysOnTopToggle.addEventListener('change', async () => {
   }
 });
 
-hotkeyInput.addEventListener('input', () => {
-  hotkeyDirty = true;
-  syncHotkeySaveState();
+hotkeyInput.addEventListener('focus', () => {
+  hotkeyInput.select();
+  setHotkeyFeedback('Pressione a nova combinacao agora.', 'accent');
 });
 
-hotkeyForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
+hotkeyInput.addEventListener('blur', () => {
+  restoreHotkeyInputState();
+});
 
-  const nextHotkey = hotkeyInput.value.trim();
-  if (!nextHotkey || isSavingHotkey) {
+hotkeyInput.addEventListener('keydown', async (event) => {
+  if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+    restoreHotkeyInputState();
     return;
   }
 
-  isSavingHotkey = true;
-  syncHotkeySaveState();
+  event.preventDefault();
+  event.stopPropagation();
 
-  try {
-    const result = await window.clipstack.updatePreferences({
-      hotkey: nextHotkey
-    });
-
-    hotkeyDirty = false;
-    hotkeyInput.value = result?.preferences?.hotkey || currentState?.preferences?.hotkey || 'Super+C';
-  } finally {
-    isSavingHotkey = false;
-    syncHotkeySaveState();
+  if (event.key === 'Escape') {
+    hotkeyInput.blur();
+    return;
   }
+
+  const result = buildAcceleratorFromEvent(event);
+  if (!result.ok) {
+    setHotkeyFeedback(result.message, 'danger');
+    return;
+  }
+
+  hotkeyInput.value = result.accelerator;
+  setHotkeyFeedback(`Salvando ${result.accelerator}...`, 'accent');
+
+  const updateResult = await window.clipstack.updatePreferences({
+    hotkey: result.accelerator
+  });
+
+  if (!updateResult?.ok) {
+    hotkeyInput.value = getSavedHotkey();
+    setHotkeyFeedback(updateResult?.message || 'Nao foi possivel salvar o novo atalho.', 'danger');
+    return;
+  }
+
+  if (currentState) {
+    currentState = {
+      ...currentState,
+      preferences: updateResult.preferences || currentState.preferences
+    };
+  }
+
+  hotkeyInput.value = updateResult?.preferences?.hotkey || getSavedHotkey();
+  setHotkeyFeedback(`Atalho salvo: ${hotkeyInput.value}`, 'success');
+});
+
+hotkeyResetButton.addEventListener('click', async () => {
+  setHotkeyFeedback(`Restaurando ${DEFAULT_HOTKEY}...`, 'accent');
+
+  const updateResult = await window.clipstack.updatePreferences({
+    hotkey: DEFAULT_HOTKEY
+  });
+
+  if (!updateResult?.ok) {
+    setHotkeyFeedback(updateResult?.message || 'Nao foi possivel restaurar o atalho padrao.', 'danger');
+    return;
+  }
+
+  if (currentState) {
+    currentState = {
+      ...currentState,
+      preferences: updateResult.preferences || currentState.preferences
+    };
+  }
+
+  hotkeyInput.value = updateResult?.preferences?.hotkey || DEFAULT_HOTKEY;
+  setHotkeyFeedback(`Atalho padrao restaurado: ${hotkeyInput.value}`, 'success');
 });
 
 Object.entries(themeInputs).forEach(([key, input]) => {
@@ -517,4 +665,5 @@ window.clipstack.onStateUpdate((state) => {
 
 applyTheme(readStoredTheme());
 hydrateThemeInputs(currentTheme);
+restoreHotkeyInputState();
 window.clipstack.ready();

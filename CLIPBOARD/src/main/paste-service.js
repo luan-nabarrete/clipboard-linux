@@ -28,7 +28,7 @@ function resolveBinary(binaryName, envPath = process.env.PATH || '') {
 }
 
 function buildUnavailablePasteMessage(env = process.env) {
-  const onWayland = Boolean(env.WAYLAND_DISPLAY && !env.DISPLAY);
+  const onWayland = Boolean(env.WAYLAND_DISPLAY);
 
   if (onWayland) {
     return 'Colagem automatica indisponivel neste Wayland. Instale wtype ou ydotool para enviar Ctrl+V ao app ativo.';
@@ -37,38 +37,79 @@ function buildUnavailablePasteMessage(env = process.env) {
   return 'Colagem automatica indisponivel. Instale xdotool em X11 ou use wtype/ydotool em Wayland para enviar Ctrl+V ao app ativo.';
 }
 
+function buildAvailablePasteMessage(backend, env = process.env) {
+  const onWayland = Boolean(env.WAYLAND_DISPLAY);
+
+  if (backend?.name === 'xdotool' && onWayland) {
+    return [
+      'Colagem via xdotool esta limitada a apps X11/XWayland nesta sessao Wayland.',
+      'Instale wtype ou ydotool para colar tambem em apps Wayland nativos.'
+    ].join(' ');
+  }
+
+  return `Colagem direta pronta via ${backend.displayName}.`;
+}
+
 function detectPasteBackend(options = {}) {
   const env = options.env || process.env;
   const resolve = options.resolveBinary || resolveBinary;
   const envPath = env.PATH || '';
+  const onWayland = Boolean(env.WAYLAND_DISPLAY);
+  const onX11 = Boolean(env.DISPLAY);
 
   const xdotoolPath = resolve('xdotool', envPath);
-  if (xdotoolPath && env.DISPLAY) {
+  const wtypePath = resolve('wtype', envPath);
+  const ydotoolPath = resolve('ydotool', envPath);
+
+  if (onWayland) {
+    if (wtypePath) {
+      return {
+        name: 'wtype',
+        path: wtypePath,
+        displayName: 'wtype (Wayland)',
+        supportsTargetWindow: false,
+        limitedOnWayland: false
+      };
+    }
+
+    if (ydotoolPath) {
+      return {
+        name: 'ydotool',
+        path: ydotoolPath,
+        displayName: 'ydotool (Wayland)',
+        supportsTargetWindow: false,
+        limitedOnWayland: false
+      };
+    }
+
+    if (xdotoolPath && onX11) {
+      return {
+        name: 'xdotool',
+        path: xdotoolPath,
+        displayName: 'xdotool (X11)',
+        supportsTargetWindow: true,
+        limitedOnWayland: true
+      };
+    }
+  }
+
+  if (xdotoolPath && onX11) {
     return {
       name: 'xdotool',
       path: xdotoolPath,
       displayName: 'xdotool (X11)',
-      supportsTargetWindow: true
+      supportsTargetWindow: true,
+      limitedOnWayland: false
     };
   }
 
-  const wtypePath = resolve('wtype', envPath);
-  if (wtypePath && env.WAYLAND_DISPLAY) {
-    return {
-      name: 'wtype',
-      path: wtypePath,
-      displayName: 'wtype (Wayland)',
-      supportsTargetWindow: false
-    };
-  }
-
-  const ydotoolPath = resolve('ydotool', envPath);
   if (ydotoolPath) {
     return {
       name: 'ydotool',
       path: ydotoolPath,
-      displayName: 'ydotool',
-      supportsTargetWindow: false
+      displayName: 'ydotool (Wayland)',
+      supportsTargetWindow: false,
+      limitedOnWayland: false
     };
   }
 
@@ -76,7 +117,8 @@ function detectPasteBackend(options = {}) {
     name: null,
     path: null,
     displayName: 'indisponivel',
-    supportsTargetWindow: false
+    supportsTargetWindow: false,
+    limitedOnWayland: false
   };
 }
 
@@ -99,6 +141,10 @@ function buildCommandErrorMessage(error, stderr) {
   return 'erro desconhecido';
 }
 
+function isBadWindowError(error, stderr) {
+  return /BadWindow/i.test(buildCommandErrorMessage(error, stderr));
+}
+
 class PasteAutomationService {
   constructor(options = {}) {
     this.env = options.env || process.env;
@@ -118,6 +164,7 @@ class PasteAutomationService {
         backend: null,
         displayName: null,
         supportsTargetWindow: false,
+        limited: false,
         message: buildUnavailablePasteMessage(this.env)
       };
     }
@@ -127,7 +174,8 @@ class PasteAutomationService {
       backend: this.backend.name,
       displayName: this.backend.displayName,
       supportsTargetWindow: this.backend.supportsTargetWindow,
-      message: `Colagem direta pronta via ${this.backend.displayName}.`
+      limited: Boolean(this.backend.limitedOnWayland),
+      message: buildAvailablePasteMessage(this.backend, this.env)
     };
   }
 
@@ -210,11 +258,24 @@ class PasteAutomationService {
           ? options.targetWindowId.trim()
           : null;
 
-        const args = targetWindowId
-          ? ['windowactivate', '--sync', targetWindowId, 'key', '--clearmodifiers', 'ctrl+v']
-          : ['key', '--clearmodifiers', 'ctrl+v'];
+        if (targetWindowId) {
+          const activationResult = await this.#runCommand(['windowactivate', '--sync', targetWindowId], {
+            failurePrefix: `Nao foi possivel reativar a janela via ${this.backend.displayName}`,
+            successMessage: `Janela reativada via ${this.backend.displayName}.`
+          });
 
-        return this.#runCommand(args, {
+          if (!activationResult.ok && !activationResult.badWindow) {
+            return {
+              ok: false,
+              message: activationResult.message.replace(
+                `Nao foi possivel reativar a janela via ${this.backend.displayName}`,
+                `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}`
+              )
+            };
+          }
+        }
+
+        return this.#runCommand(['key', '--clearmodifiers', 'ctrl+v'], {
           failurePrefix: `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}`,
           successMessage: `Colado via ${this.backend.displayName}.`
         });
@@ -244,9 +305,11 @@ class PasteAutomationService {
     return new Promise((resolve) => {
       this.execFile(this.backend.path, args, { timeout: 4000 }, (error, _stdout, stderr) => {
         if (error) {
+          const detail = buildCommandErrorMessage(error, stderr);
           resolve({
             ok: false,
-            message: `${options.failurePrefix || 'Nao foi possivel executar o comando'}: ${buildCommandErrorMessage(error, stderr)}`
+            badWindow: isBadWindowError(error, stderr),
+            message: `${options.failurePrefix || 'Nao foi possivel executar o comando'}: ${detail}`
           });
           return;
         }

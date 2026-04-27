@@ -65,15 +65,23 @@
             <input id="alwaysOnTopToggle" type="checkbox" />
           </label>
 
-          <form id="hotkeyForm" class="hotkey-form">
-            <label class="text-field" for="hotkeyInput">
+          <label class="text-field text-field-stack" for="hotkeyInput">
+            <span class="settings-inline-actions">
               <span>Atalho global</span>
-              <input id="hotkeyInput" type="text" spellcheck="false" autocomplete="off" />
-            </label>
-            <button id="hotkeySaveButton" class="hotkey-save-button" type="submit">Salvar atalho</button>
-          </form>
+              <button id="hotkeyResetButton" class="theme-reset-button" type="button">Padrao</button>
+            </span>
+            <input
+              id="hotkeyInput"
+              class="hotkey-input"
+              type="text"
+              value="Super+C"
+              readonly
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </label>
 
-          <p id="hotkeyHint" class="setting-hint">Use o formato do Electron, como Super+C ou Ctrl+Alt+Space.</p>
+          <p id="hotkeyHint" class="setting-hint">Clique no campo e pressione a combinacao desejada.</p>
         </section>
 
         <div class="settings-divider"></div>

@@ -46,7 +46,7 @@ sudo apt install ./ClipStack-<versao>-amd64.deb
 4. Depois abra pelo menu de aplicativos procurando por `ClipStack`
 
 Esse fluxo e o mais simples para quem quer instalar e abrir pelo icone do sistema.
-O pacote `.deb` agora declara `xdotool` como dependencia, entao o `apt` instala isso junto automaticamente quando necessario.
+O pacote `.deb` agora declara `xdotool`, `wtype`, `ydotool` e `ydotoold` como dependencias, entao o `apt` instala isso junto automaticamente quando necessario.
 
 ## Como usar baixando o projeto completo
 
@@ -119,8 +119,8 @@ npm test
 
 1. Em Linux, o app observa mudancas no clipboard do sistema. Isso e mais compativel do que tentar capturar `Ctrl+C` globalmente.
 2. O `Super+C` funciona melhor em `X11`. Em `Wayland`, o suporte depende do ambiente grafico e do portal de atalhos globais.
-3. No pacote `.deb`, o backend `xdotool` para `X11` vai como dependencia do sistema e o `apt` cuida disso na instalacao.
-4. Em `Wayland`, o suporte continua dependente do ambiente grafico e de ferramentas disponiveis no sistema, porque esse fluxo varia entre distribuicoes.
+3. No pacote `.deb`, os backends `xdotool`, `wtype`, `ydotool` e `ydotoold` vao como dependencias do sistema e o `apt` cuida disso na instalacao.
+4. Em `Wayland`, o app passa a preferir `wtype` ou `ydotool`. Se so houver `xdotool`, a colagem fica limitada a apps `X11` ou `XWayland`.
 5. Alguns ambientes Linux nao expoem tray de forma completa. Quando isso acontecer, o app tenta manter o painel acessivel em primeiro plano.
 6. O historico fica em memoria enquanto o app estiver rodando. Ao fechar o app, o historico e descartado.
 7. O pacote `.deb` cobre melhor Debian, Ubuntu, Mint, Pop!_OS e derivados. Em outras distribuicoes, prefira o `AppImage`, lembrando que o `AppImage` nao instala dependencias do sistema automaticamente.

@@ -15,29 +15,32 @@ class GlobalHotkeyService extends EventEmitter {
     if (this.started) {
       return {
         ok: Boolean(this.registeredAccelerator),
-        accelerator: this.accelerator
+        accelerator: this.accelerator,
+        label: this.getLabel()
       };
     }
 
     this.started = true;
-    const result = this.#registerAccelerator(this.accelerator);
-
-    if (!result.ok) {
-      this.emit('unavailable', result.message);
-    }
-
-    return result;
+    return this.#registerAccelerator(this.accelerator);
   }
 
-  updateAccelerator(nextAccelerator) {
-    const normalized = typeof nextAccelerator === 'string' && nextAccelerator.trim().length > 0
-      ? nextAccelerator.trim()
-      : this.accelerator;
+  updateAccelerator(nextAccelerator, options = {}) {
+    const normalized = this.#normalizeAccelerator(nextAccelerator);
+    const silent = options.silent === true;
+
+    if (!normalized) {
+      return {
+        ok: false,
+        accelerator: this.accelerator,
+        message: 'Informe um atalho valido com pelo menos um modificador e uma tecla final.'
+      };
+    }
 
     if (normalized === this.accelerator && this.registeredAccelerator === normalized) {
       return {
         ok: true,
-        accelerator: normalized
+        accelerator: normalized,
+        label: this.getLabel()
       };
     }
 
@@ -49,7 +52,8 @@ class GlobalHotkeyService extends EventEmitter {
     if (!this.started) {
       return {
         ok: true,
-        accelerator: this.accelerator
+        accelerator: this.accelerator,
+        label: this.getLabel()
       };
     }
 
@@ -58,7 +62,7 @@ class GlobalHotkeyService extends EventEmitter {
       this.registeredAccelerator = null;
     }
 
-    const result = this.#registerAccelerator(normalized);
+    const result = this.#registerAccelerator(normalized, silent);
     if (result.ok) {
       return result;
     }
@@ -79,6 +83,10 @@ class GlobalHotkeyService extends EventEmitter {
     };
   }
 
+  getLabel() {
+    return this.accelerator;
+  }
+
   stop() {
     if (this.registeredAccelerator) {
       globalShortcut.unregister(this.registeredAccelerator);
@@ -89,13 +97,17 @@ class GlobalHotkeyService extends EventEmitter {
     this.started = false;
   }
 
-  #registerAccelerator(accelerator) {
+  #registerAccelerator(accelerator, silent = false) {
     try {
       const registered = globalShortcut.register(accelerator, () => {
         this.emit('activated');
       });
 
       if (!registered) {
+        if (!silent) {
+          this.emit('unavailable', this.#buildUnavailableMessage(accelerator));
+        }
+
         return {
           ok: false,
           accelerator,
@@ -104,19 +116,45 @@ class GlobalHotkeyService extends EventEmitter {
       }
 
       this.registeredAccelerator = accelerator;
+      this.emit('registered', accelerator);
       return {
         ok: true,
-        accelerator
+        accelerator,
+        label: this.getLabel()
       };
     } catch (error) {
+      const message = `${this.#buildUnavailableMessage(accelerator)} Detalhe: ${
+        error instanceof Error ? error.message : error
+      }`;
+
+      if (!silent) {
+        this.emit('unavailable', message);
+      }
+
       return {
         ok: false,
         accelerator,
-        message: `${this.#buildUnavailableMessage(accelerator)} Detalhe: ${
-          error instanceof Error ? error.message : error
-        }`
+        message
       };
     }
+  }
+
+  #normalizeAccelerator(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+
+    const normalized = value
+      .split('+')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('+');
+
+    if (!normalized.includes('+')) {
+      return '';
+    }
+
+    return normalized;
   }
 
   #buildUnavailableMessage(accelerator = this.accelerator) {

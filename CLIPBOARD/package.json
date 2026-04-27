@@ -53,7 +53,10 @@
         "libatspi2.0-0",
         "libuuid1",
         "libsecret-1-0",
-        "xdotool"
+        "xdotool",
+        "wtype",
+        "ydotool",
+        "ydotoold"
       ]
     }
   },

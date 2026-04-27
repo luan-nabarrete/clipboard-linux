@@ -136,9 +136,10 @@ function bootstrap() {
 
   async function showPanelNearCursor() {
     primePasteTarget();
-    panelWindow.setTransientAlwaysOnTop(true);
+    const shouldKeepPinned = Boolean(preferences.alwaysOnTop);
+    panelWindow.setTransientAlwaysOnTop(shouldKeepPinned);
 
-    const shouldPreserveFocus = Boolean(pasteTargetWindowId && pasteService.canTargetWindow());
+    const shouldPreserveFocus = shouldKeepPinned && Boolean(pasteTargetWindowId && pasteService.canTargetWindow());
 
     panelWindow.showNearCursor({
       focus: !shouldPreserveFocus
@@ -164,7 +165,9 @@ function bootstrap() {
     };
 
     if (desiredPreferences.hotkey !== preferences.hotkey) {
-      const hotkeyResult = hotkeyService.updateAccelerator(desiredPreferences.hotkey);
+      const hotkeyResult = hotkeyService.updateAccelerator(desiredPreferences.hotkey, {
+        silent: true
+      });
       if (!hotkeyResult.ok) {
         updateHelperText(hotkeyResult.message);
         notifier.warn(hotkeyResult.message);
@@ -177,6 +180,9 @@ function bootstrap() {
     }
 
     panelWindow.setAlwaysOnTop(desiredPreferences.alwaysOnTop);
+    if (!desiredPreferences.alwaysOnTop) {
+      panelWindow.clearTransientAlwaysOnTop();
+    }
 
     try {
       persistPreferences(desiredPreferences);
@@ -221,15 +227,11 @@ function bootstrap() {
     }
 
     clipboardService.writeEntry(entry);
-
-    const shouldHideBeforePaste = !pasteService.canTargetWindow();
-    if (shouldHideBeforePaste) {
-      panelWindow.hide();
-    }
+    panelWindow.hide();
 
     const pasteResult = await pasteService.pasteClipboard({
       targetWindowId: pasteService.canTargetWindow() ? pasteTargetWindowId : null,
-      delayMs: shouldHideBeforePaste ? 140 : 0
+      delayMs: 140
     });
 
     if (!pasteResult.ok) {
@@ -282,6 +284,9 @@ function bootstrap() {
     updateHelperText(message);
     notifier.warn(message);
   });
+  hotkeyService.on('registered', () => {
+    updateHelperText();
+  });
 
   app.on('activate', () => {
     void showPanelNearCursor();
@@ -303,6 +308,10 @@ function bootstrap() {
 function buildDefaultHelperText(preferences, pasteService) {
   const hotkeyLabel = preferences?.hotkey || 'Super+C';
   const pasteStatus = pasteService.getStatus();
+
+  if (pasteStatus.available && pasteStatus.limited) {
+    return `${hotkeyLabel} abre o painel perto do cursor. ${pasteStatus.message}`;
+  }
 
   if (pasteStatus.available) {
     return `${hotkeyLabel} abre o painel perto do cursor. Clique em um item para colar imediatamente no app ativo.`;
