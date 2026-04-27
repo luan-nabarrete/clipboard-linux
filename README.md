@@ -10,11 +10,11 @@ Clipboard manager para Linux com interface grafica, historico de copias, atalho 
 - Abre um painel flutuante perto do cursor com `Super+C` por padrao ou pelo icone da tray
 - Permite trocar o atalho global e ligar/desligar o modo `sempre visivel`
 - Cola o item clicado diretamente no app ativo com `Ctrl+V` automatizado
-- Exibe lista numerada com preview abreviado e scroll
+- Exibe lista numerada com prevciew abreviado e scroll
 - Inicia oculto em segundo plano
 - Permite personalizar as cores do painel por um seletor RGB
 
-## Estrutura do repositorio
+ccc
 
 Este repositorio usa a pasta `CLIPBOARD/` como projeto principal:
 
@@ -89,6 +89,8 @@ Se quiser gerar separadamente:
 npm run dist:appimage
 npm run dist:deb
 ```
+
+IMPORTANTE: a appImage só vai funcionar corretamente se houver o xdotool instalado localmente. Ferramenta inclusa na instalação via .deb
 
 ## Stack
 
