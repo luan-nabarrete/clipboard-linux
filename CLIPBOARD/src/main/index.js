@@ -227,12 +227,23 @@ function bootstrap() {
     }
 
     clipboardService.writeEntry(entry);
-    panelWindow.hide();
+    const shouldKeepVisibleDuringPaste = Boolean(
+      preferences.alwaysOnTop && pasteService.canTargetWindow() && pasteTargetWindowId
+    );
+
+    if (!shouldKeepVisibleDuringPaste) {
+      panelWindow.hide();
+    }
 
     const pasteResult = await pasteService.pasteClipboard({
       targetWindowId: pasteService.canTargetWindow() ? pasteTargetWindowId : null,
-      delayMs: 140
+      delayMs: shouldKeepVisibleDuringPaste ? 0 : 140
     });
+
+    if (shouldKeepVisibleDuringPaste) {
+      panelWindow.blur();
+      panelWindow.moveTop();
+    }
 
     if (!pasteResult.ok) {
       updateHelperText(pasteResult.message);
