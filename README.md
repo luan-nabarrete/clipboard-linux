@@ -14,8 +14,6 @@ Clipboard manager para Linux com interface grafica, historico de copias, atalho 
 - Inicia oculto em segundo plano
 - Permite personalizar as cores do painel por um seletor RGB
 
-ccc
-
 Este repositorio usa a pasta `CLIPBOARD/` como projeto principal:
 
 ```text
@@ -130,3 +128,19 @@ npm test
 - O `package.json` usa um `homepage` placeholder (`https://clipstack.invalid`) apenas para permitir o empacotamento `.deb`
 - Antes de uma publicacao oficial, vale trocar esse link pelo repositorio ou site real do projeto
 - Textos longos sao armazenados por inteiro; apenas a visualizacao da lista e abreviada
+
+## Resumo dos commits
+
+O historico do projeto mostra uma evolucao em tres frentes: criacao da base do app, ampliacao da experiencia de uso e estabilizacao da release `0.2.2`.
+
+| Periodo | Commits principais | Alteracoes resumidas | Objetivo |
+| --- | --- | --- | --- |
+| 2026-03-30 | `c87ddb4`, `2d85bc4`, `844f193` | Criacao do repositorio, estrutura Electron, servicos principais de clipboard, historico, hotkey, tray, janela e testes iniciais; reorganizacao da documentacao no README raiz | Entregar a fundacao do ClipStack e deixar o projeto instalavel, executavel e mais facil de entender |
+| 2026-03-30 | `5090b52`, `d189e2f` | Correcao do empilhamento do historico, ajustes de redimensionamento e adicao de suporte a imagens e screenshots, com melhorias em preview, tooltip e testes | Tornar o historico mais confiavel e ampliar o app para trabalhar com mais do que texto puro |
+| 2026-03-30 | `6c7d46b`, `3c041d3` | Bump de versao para `v0.2.1` e refinamento visual dos cantos do painel | Consolidar a primeira release util e melhorar o acabamento da interface |
+| 2026-04-26 | `e676bd8`, `28c371b` | Painel passando a abrir perto do cursor, criacao de servicos de colagem, preferencias e posicionamento, suporte melhor a hotkey configuravel, `always on top` e feedback de capacidade de colagem | Reduzir atrito no uso diario e aproximar o painel do contexto da janela ativa |
+| 2026-04-26 | `0b01453`, `46e12ec` | Correcao de foco da janela ao digitar atalhos e interagir com o painel, com ajustes adicionais na logica de colagem e gerenciamento da janela | Evitar que a UI perca prioridade ou se comporte de forma inconsistente durante a interacao |
+| 2026-04-26 a 2026-04-27 | `ba88925`, `5f3b4a1`, `c9fc61f` | Atualizacao de versao para `0.2.2` e correcao do fluxo de empacotamento `.deb` com script dedicado para o `electron-builder` | Preparar uma distribuicao mais estavel para release e instalacao |
+| 2026-04-27 | `0271a1b`, `236ae76`, `298bcfb` | Evolucao da colagem para funcionar melhor entre janelas, com refinamentos de foco, alvo de colagem, renderer e testes; houve tambem commits auxiliares para sincronizar documentacao e lockfiles da release | Garantir que o item escolhido seja colado no app correto, mesmo fora da janela do ClipStack |
+
+Em resumo, os commits mais recentes do branch `release/0.2.2` estao menos focados em novas funcionalidades isoladas e mais em confiabilidade operacional: abrir no lugar certo, manter foco quando necessario, colar na janela correta e gerar pacotes de distribuicao com menos friccao.
