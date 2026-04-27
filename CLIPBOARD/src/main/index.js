@@ -117,9 +117,39 @@ function bootstrap() {
     pasteTargetWindowId = pasteService.captureTargetWindow();
   }
 
-  function showPanelNearCursor() {
+  async function restoreTargetFocusAfterPanelShow() {
+    if (!pasteTargetWindowId || !pasteService.canTargetWindow()) {
+      return;
+    }
+
+    const activationResult = await pasteService.activateWindow(pasteTargetWindowId, {
+      delayMs: 45
+    });
+
+    if (!activationResult.ok) {
+      return;
+    }
+
+    panelWindow.blur();
+    panelWindow.moveTop();
+  }
+
+  async function showPanelNearCursor() {
     primePasteTarget();
-    panelWindow.showNearCursor();
+    panelWindow.setTransientAlwaysOnTop(true);
+
+    const shouldPreserveFocus = Boolean(pasteTargetWindowId && pasteService.canTargetWindow());
+
+    panelWindow.showNearCursor({
+      focus: !shouldPreserveFocus
+    });
+
+    if (shouldPreserveFocus) {
+      await restoreTargetFocusAfterPanelShow();
+      return;
+    }
+
+    panelWindow.moveTop();
   }
 
   function persistPreferences(nextPreferences) {
@@ -208,10 +238,6 @@ function bootstrap() {
       return pasteResult;
     }
 
-    if (!preferences.alwaysOnTop) {
-      panelWindow.hide();
-    }
-
     updateHelperText();
     return pasteResult;
   });
@@ -226,11 +252,12 @@ function bootstrap() {
 
   trayService.on('toggle', () => {
     if (panelWindow.isVisible()) {
+      panelWindow.clearTransientAlwaysOnTop();
       panelWindow.hide();
       return;
     }
 
-    showPanelNearCursor();
+    void showPanelNearCursor();
   });
   trayService.on('clear', () => {
     historyStore.clear();
@@ -243,7 +270,13 @@ function bootstrap() {
   });
 
   hotkeyService.on('activated', () => {
-    showPanelNearCursor();
+    if (panelWindow.isVisible()) {
+      panelWindow.clearTransientAlwaysOnTop();
+      panelWindow.hide();
+      return;
+    }
+
+    void showPanelNearCursor();
   });
   hotkeyService.on('unavailable', (message) => {
     updateHelperText(message);
@@ -251,7 +284,7 @@ function bootstrap() {
   });
 
   app.on('activate', () => {
-    showPanelNearCursor();
+    void showPanelNearCursor();
   });
 
   app.on('before-quit', () => {
@@ -285,6 +318,7 @@ app.whenReady().then(() => {
 
 app.on('second-instance', () => {
   if (panelWindowRef) {
+    panelWindowRef.setTransientAlwaysOnTop(true);
     panelWindowRef.showNearCursor();
   }
 });

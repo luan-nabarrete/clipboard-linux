@@ -356,7 +356,8 @@ function renderState(state) {
   emptyState.hidden = true;
 
   const firstButton = historyList.querySelector('button');
-  const shouldFocusFirstItem = document.activeElement === document.body || document.activeElement === null;
+  const shouldFocusFirstItem = document.hasFocus()
+    && (document.activeElement === document.body || document.activeElement === null);
   if (shouldFocusFirstItem && firstButton instanceof HTMLButtonElement) {
     firstButton.focus();
   }

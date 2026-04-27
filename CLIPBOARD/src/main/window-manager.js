@@ -14,7 +14,8 @@ class PanelWindow extends EventEmitter {
     this.lastState = null;
     this.dragState = null;
     this.hasCustomPosition = false;
-    this.alwaysOnTop = Boolean(options.alwaysOnTop);
+    this.preferenceAlwaysOnTop = Boolean(options.alwaysOnTop);
+    this.transientAlwaysOnTop = false;
 
     this.#createWindow();
     this.#registerIpc();
@@ -31,22 +32,27 @@ class PanelWindow extends EventEmitter {
       this.#positionBottomRight();
     }
 
-    this.window.show();
-    this.window.moveTop();
+    this.#showWindow(options);
+    this.moveTop();
 
     if (options.focus !== false) {
       this.window.focus();
     }
   }
 
-  showNearCursor() {
-    this.show({ nearCursor: true });
+  showNearCursor(options = {}) {
+    this.show({
+      ...options,
+      nearCursor: true
+    });
   }
 
   hide() {
     if (this.window && this.window.isVisible()) {
       this.window.hide();
     }
+
+    this.clearTransientAlwaysOnTop();
   }
 
   toggle() {
@@ -67,15 +73,40 @@ class PanelWindow extends EventEmitter {
   }
 
   setAlwaysOnTop(enabled) {
-    this.alwaysOnTop = Boolean(enabled);
+    this.preferenceAlwaysOnTop = Boolean(enabled);
+    this.#applyAlwaysOnTop();
+  }
 
+  setTransientAlwaysOnTop(enabled) {
+    this.transientAlwaysOnTop = Boolean(enabled);
+    this.#applyAlwaysOnTop();
+  }
+
+  clearTransientAlwaysOnTop() {
+    this.setTransientAlwaysOnTop(false);
+  }
+
+  blur() {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.blur();
+    }
+  }
+
+  moveTop() {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.moveTop();
+    }
+  }
+
+  #applyAlwaysOnTop() {
     if (!this.window || this.window.isDestroyed()) {
       return;
     }
 
-    this.window.setAlwaysOnTop(this.alwaysOnTop);
+    const nextValue = this.preferenceAlwaysOnTop || this.transientAlwaysOnTop;
+    this.window.setAlwaysOnTop(nextValue);
 
-    if (this.alwaysOnTop && this.window.isVisible()) {
+    if (nextValue && this.window.isVisible()) {
       this.window.moveTop();
     }
   }
@@ -115,7 +146,7 @@ class PanelWindow extends EventEmitter {
       show: false,
       frame: false,
       resizable: true,
-      alwaysOnTop: this.alwaysOnTop,
+      alwaysOnTop: this.preferenceAlwaysOnTop,
       skipTaskbar: true,
       autoHideMenuBar: true,
       transparent: true,
@@ -216,6 +247,23 @@ class PanelWindow extends EventEmitter {
 
     this.hasCustomPosition = true;
     this.window.setPosition(nextPosition.x, nextPosition.y, false);
+  }
+
+  #showWindow(options = {}) {
+    if (!this.window) {
+      return;
+    }
+
+    if (options.focus === false && this.#supportsInactiveShow()) {
+      this.window.showInactive();
+      return;
+    }
+
+    this.window.show();
+  }
+
+  #supportsInactiveShow() {
+    return process.platform !== 'linux';
   }
 
   #setWindowSize(size) {

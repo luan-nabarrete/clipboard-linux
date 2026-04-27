@@ -104,13 +104,14 @@ class PasteAutomationService {
     this.env = options.env || process.env;
     this.execFile = options.execFile || execFile;
     this.execFileSync = options.execFileSync || execFileSync;
-    this.backend = detectPasteBackend({
-      env: this.env,
-      resolveBinary: options.resolveBinary
-    });
+    this.resolveBinary = options.resolveBinary;
+    this.backend = null;
+    this.#refreshBackend();
   }
 
   getStatus() {
+    this.#refreshBackend();
+
     if (!this.backend.name) {
       return {
         available: false,
@@ -131,14 +132,18 @@ class PasteAutomationService {
   }
 
   canPaste() {
+    this.#refreshBackend();
     return Boolean(this.backend.name);
   }
 
   canTargetWindow() {
+    this.#refreshBackend();
     return Boolean(this.backend.supportsTargetWindow);
   }
 
   captureTargetWindow() {
+    this.#refreshBackend();
+
     if (this.backend.name !== 'xdotool') {
       return null;
     }
@@ -156,7 +161,37 @@ class PasteAutomationService {
     }
   }
 
+  async activateWindow(targetWindowId, options = {}) {
+    this.#refreshBackend();
+
+    if (this.backend.name !== 'xdotool') {
+      return {
+        ok: false,
+        message: 'Reativacao de janela disponivel apenas via xdotool no X11.'
+      };
+    }
+
+    if (typeof targetWindowId !== 'string' || targetWindowId.trim().length === 0) {
+      return {
+        ok: false,
+        message: 'Janela de destino nao informada.'
+      };
+    }
+
+    const delayMs = Math.max(0, Number(options.delayMs) || 0);
+    if (delayMs > 0) {
+      await wait(delayMs);
+    }
+
+    return this.#runCommand(['windowactivate', '--sync', targetWindowId.trim()], {
+      failurePrefix: `Nao foi possivel reativar a janela via ${this.backend.displayName}`,
+      successMessage: `Janela reativada via ${this.backend.displayName}.`
+    });
+  }
+
   async pasteClipboard(options = {}) {
+    this.#refreshBackend();
+
     if (!this.backend.name) {
       return {
         ok: false,
@@ -179,14 +214,23 @@ class PasteAutomationService {
           ? ['windowactivate', '--sync', targetWindowId, 'key', '--clearmodifiers', 'ctrl+v']
           : ['key', '--clearmodifiers', 'ctrl+v'];
 
-        return this.#runPasteCommand(args);
+        return this.#runCommand(args, {
+          failurePrefix: `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}`,
+          successMessage: `Colado via ${this.backend.displayName}.`
+        });
       }
 
       case 'wtype':
-        return this.#runPasteCommand(['-M', 'ctrl', 'v', '-m', 'ctrl']);
+        return this.#runCommand(['-M', 'ctrl', 'v', '-m', 'ctrl'], {
+          failurePrefix: `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}`,
+          successMessage: `Colado via ${this.backend.displayName}.`
+        });
 
       case 'ydotool':
-        return this.#runPasteCommand(['key', '29:1', '47:1', '47:0', '29:0']);
+        return this.#runCommand(['key', '29:1', '47:1', '47:0', '29:0'], {
+          failurePrefix: `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}`,
+          successMessage: `Colado via ${this.backend.displayName}.`
+        });
 
       default:
         return {
@@ -196,22 +240,29 @@ class PasteAutomationService {
     }
   }
 
-  #runPasteCommand(args) {
+  #runCommand(args, options = {}) {
     return new Promise((resolve) => {
       this.execFile(this.backend.path, args, { timeout: 4000 }, (error, _stdout, stderr) => {
         if (error) {
           resolve({
             ok: false,
-            message: `Nao foi possivel enviar Ctrl+V via ${this.backend.displayName}: ${buildCommandErrorMessage(error, stderr)}`
+            message: `${options.failurePrefix || 'Nao foi possivel executar o comando'}: ${buildCommandErrorMessage(error, stderr)}`
           });
           return;
         }
 
         resolve({
           ok: true,
-          message: `Colado via ${this.backend.displayName}.`
+          message: options.successMessage || `Comando executado via ${this.backend.displayName}.`
         });
       });
+    });
+  }
+
+  #refreshBackend() {
+    this.backend = detectPasteBackend({
+      env: this.env,
+      resolveBinary: this.resolveBinary
     });
   }
 }
