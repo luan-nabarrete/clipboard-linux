@@ -3,9 +3,10 @@
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { BrowserWindow, ipcMain, screen } = require('electron');
+const { computeCursorAnchoredPosition } = require('./window-positioning');
 
 class PanelWindow extends EventEmitter {
-  constructor(icon) {
+  constructor(icon, options = {}) {
     super();
     this.icon = icon;
     this.window = null;
@@ -13,21 +14,33 @@ class PanelWindow extends EventEmitter {
     this.lastState = null;
     this.dragState = null;
     this.hasCustomPosition = false;
+    this.alwaysOnTop = Boolean(options.alwaysOnTop);
 
     this.#createWindow();
     this.#registerIpc();
   }
 
-  show() {
+  show(options = {}) {
     if (!this.window) {
       return;
     }
 
-    if (!this.hasCustomPosition) {
+    if (options.nearCursor) {
+      this.#positionNearCursor();
+    } else if (!this.hasCustomPosition) {
       this.#positionBottomRight();
     }
+
     this.window.show();
-    this.window.focus();
+    this.window.moveTop();
+
+    if (options.focus !== false) {
+      this.window.focus();
+    }
+  }
+
+  showNearCursor() {
+    this.show({ nearCursor: true });
   }
 
   hide() {
@@ -49,6 +62,24 @@ class PanelWindow extends EventEmitter {
     this.show();
   }
 
+  isVisible() {
+    return Boolean(this.window && this.window.isVisible());
+  }
+
+  setAlwaysOnTop(enabled) {
+    this.alwaysOnTop = Boolean(enabled);
+
+    if (!this.window || this.window.isDestroyed()) {
+      return;
+    }
+
+    this.window.setAlwaysOnTop(this.alwaysOnTop);
+
+    if (this.alwaysOnTop && this.window.isVisible()) {
+      this.window.moveTop();
+    }
+  }
+
   sendState(nextState) {
     this.lastState = nextState;
 
@@ -65,25 +96,26 @@ class PanelWindow extends EventEmitter {
     }
 
     ipcMain.removeAllListeners('panel:ready');
-    ipcMain.removeAllListeners('panel:restore');
     ipcMain.removeAllListeners('panel:delete-entry');
     ipcMain.removeAllListeners('panel:hide');
     ipcMain.removeAllListeners('panel:start-drag');
     ipcMain.removeAllListeners('panel:drag');
     ipcMain.removeAllListeners('panel:end-drag');
     ipcMain.removeAllListeners('panel:set-size');
+    ipcMain.removeHandler('panel:paste-entry');
+    ipcMain.removeHandler('panel:update-preferences');
   }
 
   #createWindow() {
     this.window = new BrowserWindow({
-      width: 300,
+      width: 420,
       height: 550,
       minWidth: 400,
       minHeight: 320,
       show: false,
       frame: false,
       resizable: true,
-      alwaysOnTop: false,
+      alwaysOnTop: this.alwaysOnTop,
       skipTaskbar: true,
       autoHideMenuBar: true,
       transparent: true,
@@ -105,6 +137,11 @@ class PanelWindow extends EventEmitter {
         this.window.webContents.send('panel:state', this.lastState);
       }
     });
+
+    this.window.on('closed', () => {
+      this.window = null;
+      this.isLoaded = false;
+    });
   }
 
   #registerIpc() {
@@ -114,9 +151,9 @@ class PanelWindow extends EventEmitter {
       }
     });
 
-    ipcMain.on('panel:restore', (_event, text) => {
-      this.emit('restore', text);
-    });
+    ipcMain.handle('panel:paste-entry', async (_event, entryId) => this.#invokeListener('paste-entry', entryId));
+
+    ipcMain.handle('panel:update-preferences', async (_event, patch) => this.#invokeListener('update-preferences', patch));
 
     ipcMain.on('panel:delete-entry', (_event, id) => {
       this.emit('delete-entry', id);
@@ -160,6 +197,27 @@ class PanelWindow extends EventEmitter {
     this.window.setPosition(left, top, false);
   }
 
+  #positionNearCursor() {
+    if (!this.window) {
+      return;
+    }
+
+    const cursor = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursor);
+    const [windowWidth, windowHeight] = this.window.getSize();
+    const nextPosition = computeCursorAnchoredPosition({
+      cursor,
+      workArea: display.workArea,
+      windowSize: {
+        width: windowWidth,
+        height: windowHeight
+      }
+    });
+
+    this.hasCustomPosition = true;
+    this.window.setPosition(nextPosition.x, nextPosition.y, false);
+  }
+
   #setWindowSize(size) {
     if (!this.window || !size) {
       return;
@@ -169,10 +227,11 @@ class PanelWindow extends EventEmitter {
     const display = screen.getDisplayNearestPoint(cursorPoint);
     const { width: maxWidth, height: maxHeight } = display.workArea;
 
-      const nextWidth = Math.max(400, Math.min(Math.round(size.width || 0), maxWidth - 24));
-      const nextHeight = Math.max(320, Math.min(Math.round(size.height || 0), maxHeight - 24));
+    const nextWidth = Math.max(400, Math.min(Math.round(size.width || 0), maxWidth - 24));
+    const nextHeight = Math.max(320, Math.min(Math.round(size.height || 0), maxHeight - 24));
 
     this.window.setSize(nextWidth, nextHeight);
+    this.#keepWindowInsideWorkArea(display.workArea);
   }
 
   #startDrag(pointer) {
@@ -199,6 +258,35 @@ class PanelWindow extends EventEmitter {
 
     this.hasCustomPosition = true;
     this.window.setPosition(nextX, nextY);
+  }
+
+  #keepWindowInsideWorkArea(workArea) {
+    if (!this.window) {
+      return;
+    }
+
+    const bounds = this.window.getBounds();
+    const minX = workArea.x + 16;
+    const minY = workArea.y + 16;
+    const maxX = Math.max(minX, workArea.x + workArea.width - bounds.width - 16);
+    const maxY = Math.max(minY, workArea.y + workArea.height - bounds.height - 16);
+    const nextX = Math.min(Math.max(bounds.x, minX), maxX);
+    const nextY = Math.min(Math.max(bounds.y, minY), maxY);
+
+    this.window.setPosition(nextX, nextY, false);
+  }
+
+  #invokeListener(eventName, payload) {
+    const [listener] = this.listeners(eventName);
+
+    if (typeof listener !== 'function') {
+      return {
+        ok: false,
+        message: 'Acao indisponivel no momento.'
+      };
+    }
+
+    return listener(payload);
   }
 }
 

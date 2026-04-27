@@ -9,7 +9,7 @@
   "scripts": {
     "start": "env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE electron .",
     "dev": "env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE electron .",
-    "test": "node --test test/*.test.js",
+    "test": "env ELECTRON_RUN_AS_NODE=1 electron --test test/*.test.js",
     "dist": "electron-builder --linux AppImage deb",
     "dist:appimage": "electron-builder --linux AppImage",
     "dist:deb": "electron-builder --linux deb",

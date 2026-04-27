@@ -10,6 +10,12 @@ const dragRail = document.getElementById('dragRail');
 const themeButton = document.getElementById('themeButton');
 const themePopover = document.getElementById('themePopover');
 const themeResetButton = document.getElementById('themeResetButton');
+const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
+const hotkeyForm = document.getElementById('hotkeyForm');
+const hotkeyInput = document.getElementById('hotkeyInput');
+const hotkeySaveButton = document.getElementById('hotkeySaveButton');
+const hotkeyHint = document.getElementById('hotkeyHint');
+const pasteCapability = document.getElementById('pasteCapability');
 
 const themeInputs = {
   text: document.getElementById('themeTextColor'),
@@ -33,7 +39,10 @@ const DEFAULT_THEME = Object.freeze({
 let resizeState = null;
 let dragPointerId = null;
 let currentTheme = { ...DEFAULT_THEME };
-const copiedFeedbackTimers = new WeakMap();
+let currentState = null;
+let hotkeyDirty = false;
+let isSavingHotkey = false;
+const actionFeedbackTimers = new WeakMap();
 
 function normalizeHexColor(value) {
   if (typeof value !== 'string' || !/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) {
@@ -190,14 +199,19 @@ function setThemePopoverOpen(isOpen) {
   themeButton.setAttribute('aria-expanded', String(isOpen));
 }
 
-function showCopiedFeedback(button) {
-  const existingTimer = copiedFeedbackTimers.get(button);
+function buildFallbackHelperText() {
+  const hotkeyLabel = currentState?.preferences?.hotkey || 'Super+C';
+  return `${hotkeyLabel} abre o painel perto do cursor. Clique em um item para colar imediatamente no app ativo.`;
+}
+
+function showActionFeedback(button, feedbackLabel) {
+  const existingTimer = actionFeedbackTimers.get(button);
   if (existingTimer) {
     window.clearTimeout(existingTimer);
   }
 
   button.classList.remove('is-copied');
-  button.dataset.feedback = 'Copiado';
+  button.dataset.feedback = feedbackLabel;
 
   // Reinicia a animacao mesmo em cliques repetidos no mesmo item.
   void button.offsetWidth;
@@ -206,19 +220,44 @@ function showCopiedFeedback(button) {
   const timer = window.setTimeout(() => {
     button.classList.remove('is-copied');
     delete button.dataset.feedback;
-    copiedFeedbackTimers.delete(button);
+    actionFeedbackTimers.delete(button);
   }, 1150);
 
-  copiedFeedbackTimers.set(button, timer);
+  actionFeedbackTimers.set(button, timer);
+}
+
+function syncHotkeySaveState() {
+  const savedHotkey = currentState?.preferences?.hotkey || 'Super+C';
+  const candidate = hotkeyInput.value.trim();
+  const hasChanged = candidate.length > 0 && candidate !== savedHotkey;
+  hotkeySaveButton.disabled = isSavingHotkey || !hasChanged;
+}
+
+function syncPreferenceControls(state) {
+  const preferences = state?.preferences || {};
+  alwaysOnTopToggle.checked = Boolean(preferences.alwaysOnTop);
+
+  if (!hotkeyDirty && document.activeElement !== hotkeyInput) {
+    hotkeyInput.value = preferences.hotkey || 'Super+C';
+  }
+
+  hotkeyHint.textContent = `Atalho atual: ${preferences.hotkey || 'Super+C'}. Use o formato do Electron, como Super+C ou Ctrl+Alt+Space.`;
+  pasteCapability.textContent = state?.pasteStatus?.displayName
+    ? state.pasteStatus.displayName
+    : 'Sem backend';
+
+  syncHotkeySaveState();
 }
 
 function renderState(state) {
+  currentState = state;
   const entries = Array.isArray(state.entries) ? state.entries : [];
 
   statusText.textContent = entries.length
     ? `${entries.length} item(ns) capturado(s)`
     : 'Aguardando copias...';
-  helperText.textContent = state.helperText || 'Super+C abre o painel. Clique em um item para restaurar texto ou imagem.';
+  helperText.textContent = state.helperText || buildFallbackHelperText();
+  syncPreferenceControls(state);
 
   historyList.innerHTML = '';
 
@@ -274,9 +313,19 @@ function renderState(state) {
     }
 
     button.append(index, content);
-    button.addEventListener('click', () => {
-      window.clipstack.restore(entry.id);
-      showCopiedFeedback(button);
+    button.addEventListener('click', async () => {
+      if (button.disabled) {
+        return;
+      }
+
+      button.disabled = true;
+
+      try {
+        const result = await window.clipstack.pasteEntry(entry.id);
+        showActionFeedback(button, result?.ok ? 'Colado' : 'Falhou');
+      } finally {
+        button.disabled = false;
+      }
     });
 
     const deleteButton = document.createElement('button');
@@ -307,7 +356,8 @@ function renderState(state) {
   emptyState.hidden = true;
 
   const firstButton = historyList.querySelector('button');
-  if (firstButton instanceof HTMLButtonElement) {
+  const shouldFocusFirstItem = document.activeElement === document.body || document.activeElement === null;
+  if (shouldFocusFirstItem && firstButton instanceof HTMLButtonElement) {
     firstButton.focus();
   }
 }
@@ -352,6 +402,46 @@ themeResetButton.addEventListener('click', () => {
   applyTheme(DEFAULT_THEME);
   hydrateThemeInputs(currentTheme);
   persistTheme(currentTheme);
+});
+
+alwaysOnTopToggle.addEventListener('change', async () => {
+  const nextValue = alwaysOnTopToggle.checked;
+  const result = await window.clipstack.updatePreferences({
+    alwaysOnTop: nextValue
+  });
+
+  if (!result?.ok) {
+    alwaysOnTopToggle.checked = Boolean(currentState?.preferences?.alwaysOnTop);
+  }
+});
+
+hotkeyInput.addEventListener('input', () => {
+  hotkeyDirty = true;
+  syncHotkeySaveState();
+});
+
+hotkeyForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const nextHotkey = hotkeyInput.value.trim();
+  if (!nextHotkey || isSavingHotkey) {
+    return;
+  }
+
+  isSavingHotkey = true;
+  syncHotkeySaveState();
+
+  try {
+    const result = await window.clipstack.updatePreferences({
+      hotkey: nextHotkey
+    });
+
+    hotkeyDirty = false;
+    hotkeyInput.value = result?.preferences?.hotkey || currentState?.preferences?.hotkey || 'Super+C';
+  } finally {
+    isSavingHotkey = false;
+    syncHotkeySaveState();
+  }
 });
 
 Object.entries(themeInputs).forEach(([key, input]) => {

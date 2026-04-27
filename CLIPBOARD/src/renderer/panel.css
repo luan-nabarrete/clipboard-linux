@@ -445,7 +445,7 @@ h1 {
   position: absolute;
   top: 78px;
   right: 18px;
-  width: 240px;
+  width: 320px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -468,6 +468,10 @@ h1 {
   color: var(--ink);
 }
 
+.theme-popover-subheader {
+  margin-top: 14px;
+}
+
 .theme-reset-button {
   border: 1px solid var(--line);
   background: transparent;
@@ -481,6 +485,134 @@ h1 {
 .theme-reset-button:hover {
   border-color: var(--ghost-hover-border);
   color: var(--ink);
+}
+
+.settings-section {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-section-header strong {
+  font-size: 0.82rem;
+  color: var(--ink);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.setting-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(31, 33, 40, 0.9);
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.toggle-field,
+.text-field {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(31, 33, 40, 0.92);
+}
+
+.toggle-field {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.toggle-field strong,
+.text-field span {
+  color: var(--ink);
+  font-size: 0.84rem;
+}
+
+.toggle-field small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.toggle-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent-purple);
+  cursor: pointer;
+}
+
+.hotkey-form {
+  display: grid;
+  gap: 10px;
+}
+
+.text-field input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(18, 19, 24, 0.96);
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.text-field input[type="text"]:focus {
+  outline: none;
+  border-color: var(--ghost-hover-border);
+  box-shadow: 0 0 0 1px rgba(244, 247, 255, 0.08);
+}
+
+.hotkey-save-button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-background);
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hotkey-save-button:hover,
+.hotkey-save-button:focus-visible {
+  border-color: var(--ghost-hover-border);
+  background: var(--card-hover-background);
+  outline: none;
+}
+
+.hotkey-save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.setting-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.settings-divider {
+  height: 1px;
+  margin: 14px 0 0;
+  background: var(--line);
 }
 
 .theme-grid {

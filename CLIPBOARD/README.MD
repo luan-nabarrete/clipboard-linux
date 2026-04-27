@@ -1,14 +1,15 @@
 # ClipStack
 
-Clipboard manager para Linux com interface grafica, historico de copias, atalho global, tray e painel flutuante para restaurar textos rapidamente.
+Clipboard manager para Linux com interface grafica, historico de copias, atalho global, tray e painel flutuante para colar textos rapidamente.
 
 ## O que o app faz
 
 - Monitora continuamente o clipboard do sistema
 - Mantem um historico em pilha com item mais recente no topo
 - Evita duplicacoes consecutivas identicas
-- Abre um painel flutuante com `Super+C` ou pelo icone da tray
-- Restaura o item clicado de volta para o clipboard atual
+- Abre um painel flutuante perto do cursor com `Super+C` por padrao ou pelo icone da tray
+- Permite trocar o atalho global e ligar/desligar o modo `sempre visivel`
+- Cola o item clicado diretamente no app ativo com `Ctrl+V` automatizado
 - Exibe lista numerada com preview abreviado e scroll
 - Inicia oculto em segundo plano
 - Permite personalizar as cores do painel por um seletor RGB
@@ -99,9 +100,11 @@ npm run dist:deb
 
 - `src/main/clipboard-service.js`: monitora o clipboard do sistema por polling
 - `src/main/history-store.js`: gerencia o historico em memoria
-- `src/main/hotkey-service.js`: registra o atalho global `Super+C`
+- `src/main/hotkey-service.js`: registra e atualiza o atalho global
+- `src/main/paste-service.js`: escolhe o backend de automacao para enviar `Ctrl+V`
+- `src/main/preferences-store.js`: persiste atalho global e modo `always on top`
 - `src/main/tray-service.js`: controla o icone da tray e o menu
-- `src/main/window-manager.js`: cria e posiciona a janela flutuante
+- `src/main/window-manager.js`: cria, ancora no cursor e mantem a janela flutuante
 - `src/renderer/*`: interface do painel
 - `src/shared/formatting.js`: preview abreviado e tooltip
 
@@ -115,9 +118,10 @@ npm test
 
 1. Em Linux, o app observa mudancas no clipboard do sistema. Isso e mais compativel do que tentar capturar `Ctrl+C` globalmente.
 2. O `Super+C` funciona melhor em `X11`. Em `Wayland`, o suporte depende do ambiente grafico e do portal de atalhos globais.
-3. Alguns ambientes Linux nao expoem tray de forma completa. Quando isso acontecer, o app tenta manter o painel acessivel em primeiro plano.
-4. O historico fica em memoria enquanto o app estiver rodando. Ao fechar o app, o historico e descartado.
-5. O pacote `.deb` cobre melhor Debian, Ubuntu, Mint, Pop!_OS e derivados. Em outras distribuicoes, prefira o `AppImage`.
+3. A colagem automatica depende de um backend do sistema: `xdotool` em `X11`, `wtype` em `Wayland` ou `ydotool` como fallback.
+4. Alguns ambientes Linux nao expoem tray de forma completa. Quando isso acontecer, o app tenta manter o painel acessivel em primeiro plano.
+5. O historico fica em memoria enquanto o app estiver rodando. Ao fechar o app, o historico e descartado.
+6. O pacote `.deb` cobre melhor Debian, Ubuntu, Mint, Pop!_OS e derivados. Em outras distribuicoes, prefira o `AppImage`.
 
 ## Observacoes
 

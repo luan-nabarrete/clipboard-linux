@@ -6,11 +6,14 @@ contextBridge.exposeInMainWorld('clipstack', {
   ready() {
     ipcRenderer.send('panel:ready');
   },
-  restore(entryId) {
-    ipcRenderer.send('panel:restore', entryId);
+  pasteEntry(entryId) {
+    return ipcRenderer.invoke('panel:paste-entry', entryId);
   },
   deleteEntry(id) {
     ipcRenderer.send('panel:delete-entry', id);
+  },
+  updatePreferences(patch) {
+    return ipcRenderer.invoke('panel:update-preferences', patch);
   },
   hidePanel() {
     ipcRenderer.send('panel:hide');

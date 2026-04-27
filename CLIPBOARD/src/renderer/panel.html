@@ -18,7 +18,7 @@
             id="themeButton"
             class="theme-button"
             type="button"
-            aria-label="Escolher cores do painel"
+            aria-label="Abrir configuracoes e cores do painel"
             aria-haspopup="dialog"
             aria-expanded="false"
             aria-controls="themePopover"
@@ -48,6 +48,37 @@
 
       <section id="themePopover" class="theme-popover" aria-label="Escolha de cores" hidden>
         <div class="theme-popover-header">
+          <strong>Preferencias</strong>
+        </div>
+
+        <section class="settings-section">
+          <div class="settings-section-header">
+            <strong>Produtividade</strong>
+            <span id="pasteCapability" class="setting-badge">Verificando...</span>
+          </div>
+
+          <label class="toggle-field" for="alwaysOnTopToggle">
+            <span>
+              <strong>Sempre visivel</strong>
+              <small>Mantem o ClipStack em primeiro plano enquanto voce alterna entre apps.</small>
+            </span>
+            <input id="alwaysOnTopToggle" type="checkbox" />
+          </label>
+
+          <form id="hotkeyForm" class="hotkey-form">
+            <label class="text-field" for="hotkeyInput">
+              <span>Atalho global</span>
+              <input id="hotkeyInput" type="text" spellcheck="false" autocomplete="off" />
+            </label>
+            <button id="hotkeySaveButton" class="hotkey-save-button" type="submit">Salvar atalho</button>
+          </form>
+
+          <p id="hotkeyHint" class="setting-hint">Use o formato do Electron, como Super+C ou Ctrl+Alt+Space.</p>
+        </section>
+
+        <div class="settings-divider"></div>
+
+        <div class="theme-popover-header theme-popover-subheader">
           <strong>Cores do painel</strong>
           <button id="themeResetButton" class="theme-reset-button" type="button">Padrao</button>
         </div>

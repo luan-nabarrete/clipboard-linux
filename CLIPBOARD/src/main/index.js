@@ -6,6 +6,8 @@ const { ClipboardService } = require('./clipboard-service');
 const { ClipboardHistoryStore } = require('./history-store');
 const { GlobalHotkeyService } = require('./hotkey-service');
 const { createAppIcon } = require('./icon');
+const { PasteAutomationService } = require('./paste-service');
+const { PreferenceStore } = require('./preferences-store');
 const { TrayService } = require('./tray-service');
 const { PanelWindow } = require('./window-manager');
 const {
@@ -16,8 +18,6 @@ const {
 } = require('../shared/formatting');
 
 const APP_NAME = 'ClipStack';
-const HOTKEY_LABEL = 'Super+C';
-const DEFAULT_HELPER_TEXT = `${HOTKEY_LABEL} abre o painel. Clique em um item para restaurar texto ou imagem.`;
 let panelWindowRef = null;
 
 // Evita falhas de GPU em alguns ambientes Linux empacotados.
@@ -49,16 +49,22 @@ function createNotifier() {
 function bootstrap() {
   const notifier = createNotifier();
   const historyStore = new ClipboardHistoryStore();
+  const preferenceStore = new PreferenceStore();
+  let preferences = preferenceStore.getAll();
   const windowIcon = createAppIcon(64);
   const trayIcon = createAppIcon(22);
+  const pasteService = new PasteAutomationService();
 
-  const panelWindow = new PanelWindow(windowIcon);
+  const panelWindow = new PanelWindow(windowIcon, {
+    alwaysOnTop: preferences.alwaysOnTop
+  });
   panelWindowRef = panelWindow;
   const trayService = new TrayService(trayIcon, APP_NAME);
   const clipboardService = new ClipboardService({ intervalMs: 350 });
-  const hotkeyService = new GlobalHotkeyService(HOTKEY_LABEL);
+  const hotkeyService = new GlobalHotkeyService(preferences.hotkey);
 
-  let helperText = DEFAULT_HELPER_TEXT;
+  let helperText = buildDefaultHelperText(preferences, pasteService);
+  let pasteTargetWindowId = null;
 
   function buildState() {
     // A renderer recebe o historico ja pronto para exibir, sem conhecer a regra de negocio.
@@ -90,6 +96,8 @@ function bootstrap() {
     return {
       helperText,
       count: entries.length,
+      preferences,
+      pasteStatus: pasteService.getStatus(),
       entries
     };
   }
@@ -101,8 +109,66 @@ function bootstrap() {
   }
 
   function updateHelperText(message) {
-    helperText = message || DEFAULT_HELPER_TEXT;
+    helperText = message || buildDefaultHelperText(preferences, pasteService);
     refreshUi();
+  }
+
+  function primePasteTarget() {
+    pasteTargetWindowId = pasteService.captureTargetWindow();
+  }
+
+  function showPanelNearCursor() {
+    primePasteTarget();
+    panelWindow.showNearCursor();
+  }
+
+  function persistPreferences(nextPreferences) {
+    preferences = preferenceStore.update(nextPreferences);
+    return preferences;
+  }
+
+  async function applyPreferences(patch) {
+    const desiredPreferences = {
+      ...preferences,
+      ...patch
+    };
+
+    if (desiredPreferences.hotkey !== preferences.hotkey) {
+      const hotkeyResult = hotkeyService.updateAccelerator(desiredPreferences.hotkey);
+      if (!hotkeyResult.ok) {
+        updateHelperText(hotkeyResult.message);
+        notifier.warn(hotkeyResult.message);
+        return {
+          ok: false,
+          message: hotkeyResult.message,
+          preferences
+        };
+      }
+    }
+
+    panelWindow.setAlwaysOnTop(desiredPreferences.alwaysOnTop);
+
+    try {
+      persistPreferences(desiredPreferences);
+    } catch (error) {
+      const message = `Nao foi possivel salvar as preferencias: ${
+        error instanceof Error ? error.message : error
+      }`;
+      updateHelperText(message);
+      notifier.warn(message);
+
+      return {
+        ok: false,
+        message,
+        preferences
+      };
+    }
+
+    updateHelperText();
+    return {
+      ok: true,
+      preferences
+    };
   }
 
   clipboardService.on('copied', (text) => {
@@ -115,14 +181,39 @@ function bootstrap() {
     notifier.warn(`Falha ao acessar o clipboard: ${error instanceof Error ? error.message : error}`);
   });
 
-  panelWindow.on('restore', (entryId) => {
+  panelWindow.on('paste-entry', async (entryId) => {
     const entry = historyStore.getById(entryId);
     if (!entry) {
-      return;
+      return {
+        ok: false,
+        message: 'Item nao encontrado no historico.'
+      };
     }
 
-    // Restaurar um item nao deve reordenar o historico; apenas devolve o conteudo ao clipboard.
     clipboardService.writeEntry(entry);
+
+    const shouldHideBeforePaste = !pasteService.canTargetWindow();
+    if (shouldHideBeforePaste) {
+      panelWindow.hide();
+    }
+
+    const pasteResult = await pasteService.pasteClipboard({
+      targetWindowId: pasteService.canTargetWindow() ? pasteTargetWindowId : null,
+      delayMs: shouldHideBeforePaste ? 140 : 0
+    });
+
+    if (!pasteResult.ok) {
+      updateHelperText(pasteResult.message);
+      notifier.warn(pasteResult.message);
+      return pasteResult;
+    }
+
+    if (!preferences.alwaysOnTop) {
+      panelWindow.hide();
+    }
+
+    updateHelperText();
+    return pasteResult;
   });
 
   panelWindow.on('delete-entry', (id) => {
@@ -131,7 +222,16 @@ function bootstrap() {
     }
   });
 
-  trayService.on('toggle', () => panelWindow.toggle());
+  panelWindow.on('update-preferences', (patch) => applyPreferences(patch));
+
+  trayService.on('toggle', () => {
+    if (panelWindow.isVisible()) {
+      panelWindow.hide();
+      return;
+    }
+
+    showPanelNearCursor();
+  });
   trayService.on('clear', () => {
     historyStore.clear();
     refreshUi();
@@ -142,14 +242,16 @@ function bootstrap() {
     panelWindow.show();
   });
 
-  hotkeyService.on('activated', () => panelWindow.toggle());
+  hotkeyService.on('activated', () => {
+    showPanelNearCursor();
+  });
   hotkeyService.on('unavailable', (message) => {
     updateHelperText(message);
     notifier.warn(message);
   });
 
   app.on('activate', () => {
-    panelWindow.toggle();
+    showPanelNearCursor();
   });
 
   app.on('before-quit', () => {
@@ -163,7 +265,17 @@ function bootstrap() {
   hotkeyService.start();
   clipboardService.start();
   refreshUi();
-  panelWindow.show();
+}
+
+function buildDefaultHelperText(preferences, pasteService) {
+  const hotkeyLabel = preferences?.hotkey || 'Super+C';
+  const pasteStatus = pasteService.getStatus();
+
+  if (pasteStatus.available) {
+    return `${hotkeyLabel} abre o painel perto do cursor. Clique em um item para colar imediatamente no app ativo.`;
+  }
+
+  return `${hotkeyLabel} abre o painel perto do cursor. ${pasteStatus.message}`;
 }
 
 app.whenReady().then(() => {
@@ -173,6 +285,6 @@ app.whenReady().then(() => {
 
 app.on('second-instance', () => {
   if (panelWindowRef) {
-    panelWindowRef.show();
+    panelWindowRef.showNearCursor();
   }
 });
