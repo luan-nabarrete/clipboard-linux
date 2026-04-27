@@ -7,6 +7,7 @@ const { ClipboardHistoryStore } = require('./history-store');
 const { GlobalHotkeyService } = require('./hotkey-service');
 const { createAppIcon } = require('./icon');
 const { PasteAutomationService } = require('./paste-service');
+const { PasteTargetTracker } = require('./paste-target-tracker');
 const { PreferenceStore } = require('./preferences-store');
 const { TrayService } = require('./tray-service');
 const { PanelWindow } = require('./window-manager');
@@ -62,9 +63,12 @@ function bootstrap() {
   const trayService = new TrayService(trayIcon, APP_NAME);
   const clipboardService = new ClipboardService({ intervalMs: 350 });
   const hotkeyService = new GlobalHotkeyService(preferences.hotkey);
+  const pasteTargetTracker = new PasteTargetTracker({
+    pasteService,
+    panelWindow
+  });
 
   let helperText = buildDefaultHelperText(preferences, pasteService);
-  let pasteTargetWindowId = null;
 
   function buildState() {
     // A renderer recebe o historico ja pronto para exibir, sem conhecer a regra de negocio.
@@ -114,10 +118,11 @@ function bootstrap() {
   }
 
   function primePasteTarget() {
-    pasteTargetWindowId = pasteService.captureTargetWindow();
+    return pasteTargetTracker.prime();
   }
 
   async function restoreTargetFocusAfterPanelShow() {
+    const pasteTargetWindowId = pasteTargetTracker.getTargetWindowId();
     if (!pasteTargetWindowId || !pasteService.canTargetWindow()) {
       return;
     }
@@ -135,7 +140,7 @@ function bootstrap() {
   }
 
   async function showPanelNearCursor() {
-    primePasteTarget();
+    const pasteTargetWindowId = primePasteTarget();
     const shouldKeepPinned = Boolean(preferences.alwaysOnTop);
     panelWindow.setTransientAlwaysOnTop(shouldKeepPinned);
 
@@ -227,6 +232,7 @@ function bootstrap() {
     }
 
     clipboardService.writeEntry(entry);
+    const pasteTargetWindowId = pasteTargetTracker.getTargetWindowId();
     const shouldKeepVisibleDuringPaste = Boolean(
       preferences.alwaysOnTop && pasteService.canTargetWindow() && pasteTargetWindowId
     );
@@ -306,6 +312,7 @@ function bootstrap() {
   app.on('before-quit', () => {
     clipboardService.stop();
     hotkeyService.stop();
+    pasteTargetTracker.stop();
     trayService.destroy();
     panelWindow.destroy();
   });
@@ -313,6 +320,7 @@ function bootstrap() {
   trayService.start();
   hotkeyService.start();
   clipboardService.start();
+  pasteTargetTracker.start();
   refreshUi();
 }
 

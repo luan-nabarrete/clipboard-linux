@@ -72,6 +72,10 @@ class PanelWindow extends EventEmitter {
     return Boolean(this.window && this.window.isVisible());
   }
 
+  isFocused() {
+    return Boolean(this.window && this.window.isFocused());
+  }
+
   setAlwaysOnTop(enabled) {
     this.preferenceAlwaysOnTop = Boolean(enabled);
     this.#applyAlwaysOnTop();
