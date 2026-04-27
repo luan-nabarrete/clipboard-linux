@@ -7,7 +7,7 @@ class PasteTargetTracker {
     this.intervalMs = Math.max(50, Number(options.intervalMs) || 120);
     this.scheduleInterval = options.scheduleInterval || setInterval;
     this.clearScheduledInterval = options.clearScheduledInterval || clearInterval;
-    this.targetWindowId = null;
+    this.target = null;
     this.intervalHandle = null;
   }
 
@@ -35,34 +35,38 @@ class PasteTargetTracker {
   }
 
   prime() {
-    this.targetWindowId = this.#captureCurrentTarget();
-    return this.targetWindowId;
+    this.target = this.#captureCurrentTarget();
+    return this.target;
   }
 
   refresh() {
     if (!this.pasteService?.canTargetWindow?.()) {
-      this.targetWindowId = null;
-      return this.targetWindowId;
+      this.target = null;
+      return this.target;
     }
 
     if (!this.panelWindow?.isVisible?.() || this.panelWindow?.isFocused?.()) {
-      return this.targetWindowId;
+      return this.target;
     }
 
-    const nextTargetWindowId = this.#captureCurrentTarget();
-    if (nextTargetWindowId) {
-      this.targetWindowId = nextTargetWindowId;
+    const nextTarget = this.#captureCurrentTarget();
+    if (nextTarget?.activationWindowId) {
+      this.target = nextTarget;
     }
 
-    return this.targetWindowId;
+    return this.target;
   }
 
   clear() {
-    this.targetWindowId = null;
+    this.target = null;
+  }
+
+  getTarget() {
+    return this.target;
   }
 
   getTargetWindowId() {
-    return this.targetWindowId;
+    return this.target?.activationWindowId || null;
   }
 
   #captureCurrentTarget() {
@@ -70,7 +74,16 @@ class PasteTargetTracker {
       return null;
     }
 
-    return this.pasteService.captureTargetWindow();
+    const activationWindowId = this.pasteService.captureTargetWindow();
+    if (!activationWindowId) {
+      return null;
+    }
+
+    const focusedWindowId = this.pasteService.captureFocusedWindow() || activationWindowId;
+    return {
+      activationWindowId,
+      focusedWindowId
+    };
   }
 }
 

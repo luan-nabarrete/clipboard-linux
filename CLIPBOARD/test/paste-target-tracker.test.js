@@ -13,6 +13,9 @@ test('prime captura a janela ativa atual', () => {
       },
       captureTargetWindow() {
         return '0x100001';
+      },
+      captureFocusedWindow() {
+        return '0x100002';
       }
     },
     panelWindow: {
@@ -25,8 +28,15 @@ test('prime captura a janela ativa atual', () => {
     }
   });
 
-  assert.equal(tracker.prime(), '0x100001');
+  assert.deepEqual(tracker.prime(), {
+    activationWindowId: '0x100001',
+    focusedWindowId: '0x100002'
+  });
   assert.equal(tracker.getTargetWindowId(), '0x100001');
+  assert.deepEqual(tracker.getTarget(), {
+    activationWindowId: '0x100001',
+    focusedWindowId: '0x100002'
+  });
 });
 
 test('refresh atualiza o alvo enquanto o painel esta visivel e sem foco', () => {
@@ -40,6 +50,9 @@ test('refresh atualiza o alvo enquanto o painel esta visivel e sem foco', () => 
       },
       captureTargetWindow() {
         return currentTarget;
+      },
+      captureFocusedWindow() {
+        return `${currentTarget}-focus`;
       }
     },
     panelWindow: {
@@ -65,6 +78,10 @@ test('refresh atualiza o alvo enquanto o painel esta visivel e sem foco', () => 
   scheduledRefresh();
 
   assert.equal(tracker.getTargetWindowId(), '0x200002');
+  assert.deepEqual(tracker.getTarget(), {
+    activationWindowId: '0x200002',
+    focusedWindowId: '0x200002-focus'
+  });
 });
 
 test('refresh preserva o alvo quando o painel esta focado', () => {
@@ -79,6 +96,9 @@ test('refresh preserva o alvo quando o painel esta focado', () => {
       captureTargetWindow() {
         captures += 1;
         return captures === 1 ? '0x100001' : '0x200002';
+      },
+      captureFocusedWindow() {
+        return captures === 1 ? '0x100001-focus' : '0x200002-focus';
       }
     },
     panelWindow: {
@@ -97,6 +117,10 @@ test('refresh preserva o alvo quando o painel esta focado', () => {
 
   assert.equal(captures, 1);
   assert.equal(tracker.getTargetWindowId(), '0x100001');
+  assert.deepEqual(tracker.getTarget(), {
+    activationWindowId: '0x100001',
+    focusedWindowId: '0x100001-focus'
+  });
 });
 
 test('stop limpa o intervalo agendado', () => {
@@ -110,6 +134,9 @@ test('stop limpa o intervalo agendado', () => {
       },
       captureTargetWindow() {
         return '0x100001';
+      },
+      captureFocusedWindow() {
+        return '0x100001-focus';
       }
     },
     panelWindow: {

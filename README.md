@@ -9,7 +9,7 @@ Clipboard manager para Linux com interface grafica, historico de copias, atalho 
 - Evita duplicacoes consecutivas identicas
 - Abre um painel flutuante perto do cursor com `Super+C` por padrao ou pelo icone da tray
 - Permite trocar o atalho global e ligar/desligar o modo `sempre visivel`
-- Cola o item clicado diretamente no app ativo com `Ctrl+V` automatizado
+- Cola o item clicado diretamente no app ativo com o atalho adequado, como `Ctrl+V` ou `Shift+Insert` em terminais compativeis
 - Exibe lista numerada com prevciew abreviado e scroll
 - Inicia oculto em segundo plano
 - Permite personalizar as cores do painel por um seletor RGB
@@ -101,7 +101,7 @@ IMPORTANTE: a appImage só vai funcionar corretamente se houver o xdotool instal
 - `src/main/clipboard-service.js`: monitora o clipboard do sistema por polling
 - `src/main/history-store.js`: gerencia o historico em memoria
 - `src/main/hotkey-service.js`: registra e atualiza o atalho global
-- `src/main/paste-service.js`: escolhe o backend de automacao para enviar `Ctrl+V`
+- `src/main/paste-service.js`: escolhe o backend e o atalho de colagem adequados para a janela ativa
 - `src/main/preferences-store.js`: persiste atalho global e modo `always on top`
 - `src/main/tray-service.js`: controla o icone da tray e o menu
 - `src/main/window-manager.js`: cria, ancora no cursor e mantem a janela flutuante

@@ -139,8 +139,22 @@ function bootstrap() {
     panelWindow.moveTop();
   }
 
+  async function restoreTargetFocusAfterPaste() {
+    const pasteTargetWindowId = pasteTargetTracker.getTargetWindowId();
+    if (!pasteTargetWindowId || !pasteService.canTargetWindow()) {
+      return;
+    }
+
+    panelWindow.blur();
+    await pasteService.activateWindow(pasteTargetWindowId, {
+      delayMs: 45
+    });
+    panelWindow.moveTop();
+  }
+
   async function showPanelNearCursor() {
-    const pasteTargetWindowId = primePasteTarget();
+    const pasteTarget = primePasteTarget();
+    const pasteTargetWindowId = pasteTarget?.activationWindowId || null;
     const shouldKeepPinned = Boolean(preferences.alwaysOnTop);
     panelWindow.setTransientAlwaysOnTop(shouldKeepPinned);
 
@@ -232,7 +246,8 @@ function bootstrap() {
     }
 
     clipboardService.writeEntry(entry);
-    const pasteTargetWindowId = pasteTargetTracker.getTargetWindowId();
+    const pasteTarget = pasteTargetTracker.getTarget();
+    const pasteTargetWindowId = pasteTarget?.activationWindowId || null;
     const shouldKeepVisibleDuringPaste = Boolean(
       preferences.alwaysOnTop && pasteService.canTargetWindow() && pasteTargetWindowId
     );
@@ -243,12 +258,12 @@ function bootstrap() {
 
     const pasteResult = await pasteService.pasteClipboard({
       targetWindowId: pasteService.canTargetWindow() ? pasteTargetWindowId : null,
+      focusedWindowId: pasteService.canTargetWindow() ? pasteTarget?.focusedWindowId || null : null,
       delayMs: shouldKeepVisibleDuringPaste ? 0 : 140
     });
 
     if (shouldKeepVisibleDuringPaste) {
-      panelWindow.blur();
-      panelWindow.moveTop();
+      await restoreTargetFocusAfterPaste();
     }
 
     if (!pasteResult.ok) {
